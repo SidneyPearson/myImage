@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片预览系统 - 直接预览</title>
+    <style>
+        /* 全局样式 */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            transition: background-image 0.5s ease;
+            overflow: hidden;
+        }
+        /* 模糊背景层 */
+        #backgroundBlur {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            filter: blur(20px);
+            z-index: -1;
+            transition: background-image 0.5s ease;
+        }
+        /* 3D 轮盘容器 */
+        .carousel-container {
+            perspective: 1200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        /* 图片列表样式 - 3D 轮盘式排列 */
+        ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+            width: 200px;
+            height: 200px;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.5s ease;
+        }
+        /* 基础li样式 - 3D位置将通过JavaScript动态设置 */
+        li {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            margin: 0;
+            opacity: 0.7;
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        /* 缩略图样式 */
+        li img {
+            width: 250px;
+            height: 250px;
+            object-fit: cover;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+        }
+        li img:hover {
+            transform: scale(1.1);
+        }
+        /* 放大预览容器 - 全屏显示 */
+        #imagePreview {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            overflow: hidden;
+            opacity: 0;
+            /* 初始状态：从当前位置缩小 */
+            transform: scale(0.9);
+            /* 平缓的过渡效果 */
+            transition: opacity 0.5s ease, transform 0.5s ease;
+            pointer-events: none;
+        }
+        /* 显示预览容器的类 */
+        #imagePreview.show {
+            opacity: 1;
+            /* 结束状态：全屏显示 */
+            transform: scale(1);
+            pointer-events: auto;
+        }
+        #imagePreview img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        /* 关闭按钮样式 */
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 25px;
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 1001;
+            opacity: 0.8;
+            transition: opacity 0.3s ease;
+        }
+        .close-btn:hover {
+            opacity: 1;
+        }
+        /* 控制按钮 */
+        .controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+        .control-btn {
+            background-color: rgba(255, 255, 255, 0.15);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            backdrop-filter: blur(15px);
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .control-btn:hover {
+            background-color: rgba(255, 255, 255, 0.25);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+        }
+        /* 当前文件夹信息 */
+        .folder-info {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.2);
+            padding: 15px 20px;
+            border-radius: 8px;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .folder-info span {
+            font-family: monospace;
+            font-weight: 500;
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 3px 8px;
+            border-radius: 4px;
+            margin-left: 8px;
+        }
+        /* 更换文件夹链接 */
+        .change-folder {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            color: white;
+            background-color: rgba(76, 175, 80, 0.8);
+            padding: 12px 24px;
+            border-radius: 8px;
+            backdrop-filter: blur(15px);
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .change-folder:hover {
+            background-color: rgba(76, 175, 80, 1);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+        }
+    </style>
+</head>
+<body>
+    <!-- 模糊背景层 -->
+    <div id="backgroundBlur"></div>
+    
+    <!-- 当前文件夹信息 -->
+    <div class="folder-info">
+        <span>当前文件夹：</span>
+        <span id="currentFolderName"></span>
+    </div>
+    
+    <!-- 控制按钮 -->
+    <div class="controls">
+        <button id="prevBtn" class="control-btn">上一张</button>
+        <button id="nextBtn" class="control-btn">下一张</button>
+        <button id="autoBtn" class="control-btn">自动轮播</button>
+        <form action="/logout" method="post" style="display: inline;">
+            <button type="submit" class="control-btn">登出</button>
+        </form>
+    </div>
+    
+    <div id="noImages">
+        <div class="folder-info" style="top: 70px;">图片目录中没有图片</div>
+    </div>
+    
+    <div id="hasImages" style="display: none;">
+        <!-- 3D 轮盘容器 -->
+        <div class="carousel-container">
+            <ul id="carousel">
+                <!-- 图片将通过JavaScript动态添加 -->
+            </ul>
+        </div>
+    </div>
+    
+    <!-- 更换文件夹链接 -->
+    <a href="/direct-select-folder" class="change-folder">更换文件夹</a>
+    
+    <!-- 放大预览容器 -->
+        <div id="imagePreview">
+            <div id="closePreview" class="close-btn">×</div>
+            <img id="previewImage" src="" alt="预览图片">
+        </div>
+    
+    <script>
+        // 初始化页面
+        function initPage() {
+            // 从sessionStorage获取图片数据
+            const imagesData = sessionStorage.getItem('directSelectedImages');
+            const folderName = sessionStorage.getItem('selectedFolderName');
+            
+            // 检查是否有图片数据，如果没有，重定向到选择页面
+            if (!imagesData) {
+                window.location.href = '/direct-select-folder';
+                return;
+            }
+            
+            const images = JSON.parse(imagesData);
+            
+            // 设置当前文件夹名称
+            document.getElementById('currentFolderName').textContent = folderName;
+            
+            // 检查是否有图片
+            if (images.length === 0) {
+                document.getElementById('noImages').style.display = 'block';
+                document.getElementById('hasImages').style.display = 'none';
+                return;
+            }
+            
+            document.getElementById('noImages').style.display = 'none';
+            document.getElementById('hasImages').style.display = 'block';
+            
+            // 动态添加图片到轮盘
+            const carousel = document.getElementById('carousel');
+            carousel.innerHTML = '';
+            
+            images.forEach((image, index) => {
+                const li = document.createElement('li');
+                const img = document.createElement('img');
+                img.src = image.url;
+                img.alt = image.name;
+                
+                // 添加图片加载错误处理
+                img.onerror = function() {
+                    // 图片加载失败时，显示错误信息或重定向到选择页面
+                    console.error('图片加载失败:', image.name, image.url);
+                    // 可以选择显示错误信息，或者直接重定向到选择页面
+                    // 这里选择重定向到选择页面，让用户重新选择文件夹
+                    window.location.href = '/direct-select-folder';
+                };
+                
+                li.appendChild(img);
+                carousel.appendChild(li);
+            });
+            
+            // 初始化轮播功能
+            initCarousel();
+        }
+        
+        // 初始化轮播功能
+        function initCarousel() {
+            // 获取DOM元素
+            const carousel = document.getElementById('carousel');
+            const items = document.querySelectorAll('li');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const autoBtn = document.getElementById('autoBtn');
+            const backgroundBlur = document.getElementById('backgroundBlur');
+            
+
+            
+            // 轮播参数
+            let currentIndex = 0;
+            let totalItems = items.length;
+            let autoPlay = false;
+            let autoPlayInterval = null;
+            let currentAngle = 0; // 跟踪当前的旋转角度
+            const defaultAutoPlaySpeed = 1000; // 默认自动轮播速度（毫秒）
+            let autoPlaySpeed = defaultAutoPlaySpeed; // 当前自动轮播速度
+            let lastScrollTime = 0; // 记录上次滚动时间，用于计算滚动速度
+            let scrollSpeed = 0; // 记录滚动速度
+            let speedRecoveryTimer = null; // 用于恢复默认速度的定时器
+            const speedRecoveryDelay = 1000; // 滚动停止后开始恢复速度的延迟时间（毫秒）
+            const speedRecoveryStep = 100; // 每次恢复的速度步长（毫秒）
+            
+            // 根据图片数量计算合适的圆环半径，避免图片重叠
+            function calculateRingRadius(itemCount) {
+                // 每张图片的宽度为250px，确保图片之间有10%的间隔
+                const imageWidth = 250;
+                const spacingFactor = 1.1;
+                const minRadius = 300;
+                
+                // 计算所需的最小半径：radius = (imageWidth * spacingFactor) / (2 * Math.sin(Math.PI / itemCount))
+                // 当图片数量为1时，使用最小半径
+                const radius = itemCount > 1 ? 
+                    Math.max(minRadius, (imageWidth * spacingFactor) / (2 * Math.sin(Math.PI / itemCount))) : 
+                    minRadius;
+                
+                return Math.round(radius);
+            }
+            
+            const ringRadius = calculateRingRadius(totalItems);
+            
+            // 为每个li元素设置初始3D位置
+            ensureFrontFacing();
+            
+            // 确保图片正面朝向的辅助函数
+            function ensureFrontFacing() {
+                items.forEach((item, index) => {
+                    // 计算当前图片与中心图片的索引差
+                    const indexDiff = index - currentIndex;
+                    
+                    // 计算每个项目在轮播圆环上的位置角度
+                    const angle = (360 / totalItems) * indexDiff;
+                    
+                    // 使用三角函数计算3D位置，确保所有图片正面朝向
+                    const x = Math.sin(angle * Math.PI / 180) * ringRadius;
+                    const z = Math.cos(angle * Math.PI / 180) * ringRadius;
+                    
+                    // 设置3D位置，但保持图片正面朝向（rotateY(0deg)）
+                    item.style.transform = `translate(-50%, -50%) translateX(${x}px) translateZ(${z}px) rotateY(0deg)`;
+                    
+                    // 根据是否为当前显示的图片调整透明度和层级
+                    if (index === currentIndex) {
+                        item.style.opacity = 1;
+                        item.style.zIndex = 10;
+                    } else {
+                        item.style.opacity = 0.7;
+                        item.style.zIndex = 1;
+                    }
+                });
+            }
+            
+            // 设置当前图片作为背景
+            function setCurrentImageBackground() {
+                if (totalItems > 0) {
+                    const currentImage = items[currentIndex].querySelector('img');
+                    backgroundBlur.style.backgroundImage = `url('${currentImage.src}')`;
+                }
+            }
+            
+            // 更新轮播状态
+        function updateCarousel() {
+            // 确保所有图片正面朝向，通过ensureFrontFacing函数计算精确位置
+            ensureFrontFacing();
+            
+            // 设置当前图片作为背景
+            setCurrentImageBackground();
+        }
+            
+            // 下一张图片
+            function nextSlide() {
+                // 直接更新当前索引，确保图片向上轮播
+                currentIndex = (currentIndex + 1) % totalItems;
+                updateCarousel();
+            }
+            
+            // 上一张图片
+            function prevSlide() {
+                // 直接更新当前索引，确保图片向上轮播
+                currentIndex = (currentIndex - 1 + totalItems) % totalItems;
+                updateCarousel();
+            }
+            
+            // 自动轮播
+            function toggleAutoPlay() {
+                autoPlay = !autoPlay;
+                if (autoPlay) {
+                    autoBtn.textContent = '停止轮播';
+                    autoPlayInterval = setInterval(nextSlide, autoPlaySpeed); // 使用动态速度
+                } else {
+                    autoBtn.textContent = '自动轮播';
+                    clearInterval(autoPlayInterval);
+                }
+            }
+            
+            // 更新自动轮播速度
+            function updateAutoPlaySpeed(newSpeed) {
+                // 限制速度范围，防止过快或过慢
+                const minSpeed = 300; // 最小速度（毫秒）
+                const maxSpeed = 3000; // 最大速度（毫秒）
+                autoPlaySpeed = Math.max(minSpeed, Math.min(maxSpeed, newSpeed));
+                
+                // 如果当前正在自动轮播，重新启动以应用新速度
+                if (autoPlay) {
+                    toggleAutoPlay(); // 先停止
+                    toggleAutoPlay(); // 再启动
+                }
+            }
+            
+            // 开始恢复默认速度的定时器
+            function startSpeedRecovery() {
+                // 清除之前的定时器
+                if (speedRecoveryTimer) {
+                    clearTimeout(speedRecoveryTimer);
+                    speedRecoveryTimer = null;
+                }
+                
+                // 设置新的定时器，延迟后开始恢复速度
+                speedRecoveryTimer = setTimeout(() => {
+                    // 逐渐恢复到默认速度
+                    function recoverSpeed() {
+                        if (autoPlaySpeed > defaultAutoPlaySpeed) {
+                            // 如果当前速度比默认速度快，逐渐减慢
+                            autoPlaySpeed = Math.max(defaultAutoPlaySpeed, autoPlaySpeed - speedRecoveryStep);
+                            
+                            // 如果当前正在自动轮播，重新启动以应用新速度
+                            if (autoPlay) {
+                                toggleAutoPlay(); // 先停止
+                                toggleAutoPlay(); // 再启动
+                            }
+                            
+                            // 继续恢复
+                            speedRecoveryTimer = setTimeout(recoverSpeed, 100);
+                        } else if (autoPlaySpeed < defaultAutoPlaySpeed) {
+                            // 如果当前速度比默认速度慢，逐渐加快
+                            autoPlaySpeed = Math.min(defaultAutoPlaySpeed, autoPlaySpeed + speedRecoveryStep);
+                            
+                            // 如果当前正在自动轮播，重新启动以应用新速度
+                            if (autoPlay) {
+                                toggleAutoPlay(); // 先停止
+                                toggleAutoPlay(); // 再启动
+                            }
+                            
+                            // 继续恢复
+                            speedRecoveryTimer = setTimeout(recoverSpeed, 100);
+                        } else {
+                            // 已恢复到默认速度，清除定时器
+                            clearTimeout(speedRecoveryTimer);
+                            speedRecoveryTimer = null;
+                        }
+                    }
+                    
+                    recoverSpeed();
+                }, speedRecoveryDelay);
+            }
+            
+            // 初始化
+            if (totalItems > 0) {
+                updateCarousel();
+                // 默认开启自动轮播
+                toggleAutoPlay();
+            }
+            
+            // 事件监听
+            nextBtn.addEventListener('click', nextSlide);
+            prevBtn.addEventListener('click', prevSlide);
+            autoBtn.addEventListener('click', toggleAutoPlay);
+            
+            // 点击图片容器切换到该图片（仅当没有点击到图片本身时）
+            items.forEach((item, index) => {
+                item.addEventListener('click', () => {
+                    // 直接更新当前索引
+                    currentIndex = index;
+                    updateCarousel();
+                });
+            });
+            
+            // 鼠标悬停图片时，将该图片设置为背景预览并停止自动轮播
+            items.forEach((item, index) => {
+                const img = item.querySelector('img');
+                let originalBackground = '';
+                let wasAutoPlaying = false;
+                
+                // 鼠标进入时：停止自动轮播并设置为当前图片预览
+                img.addEventListener('mouseenter', () => {
+                    // 保存自动轮播状态并停止
+                    wasAutoPlaying = autoPlay;
+                    if (autoPlay) {
+                        toggleAutoPlay(); // 停止自动轮播
+                    }
+                    
+                    // 保存原始背景并切换到当前图片
+                    originalBackground = backgroundBlur.style.backgroundImage;
+                    backgroundBlur.style.backgroundImage = `url('${img.src}')`;
+                });
+                
+                // 鼠标离开时：恢复自动轮播状态和原来的背景
+                img.addEventListener('mouseleave', () => {
+                    // 恢复原来的背景
+                    backgroundBlur.style.backgroundImage = originalBackground;
+                    
+                    // 如果之前是自动轮播状态，则恢复
+                    if (wasAutoPlaying && !autoPlay) {
+                        toggleAutoPlay(); // 恢复自动轮播
+                    }
+                });
+            });
+            
+            // 点击图片放大预览功能
+            const imagePreview = document.getElementById('imagePreview');
+            const previewImage = document.getElementById('previewImage');
+            
+            // 为每个图片添加点击放大事件
+            items.forEach((item) => {
+                const img = item.querySelector('img');
+                
+                img.addEventListener('click', (e) => {
+                    // 阻止事件冒泡，避免触发轮盘切换
+                    e.stopPropagation();
+                    
+                    // 设置预览图片的源
+                    previewImage.src = img.src;
+                    previewImage.alt = img.alt;
+                    
+                    // 显示放大预览容器（添加show类实现平滑过渡）
+                    imagePreview.classList.add('show');
+                });
+            });
+            
+            // 点击放大预览容器外部关闭预览
+            imagePreview.addEventListener('click', () => {
+                imagePreview.classList.remove('show');
+            });
+            
+            // 点击放大预览图片本身不关闭（可选，提升用户体验）
+            previewImage.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+            
+            // 点击关闭按钮关闭预览
+            const closePreview = document.getElementById('closePreview');
+            closePreview.addEventListener('click', () => {
+                imagePreview.classList.remove('show');
+            });
+            
+            // 按ESC键关闭放大预览
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && imagePreview.classList.contains('show')) {
+                imagePreview.classList.remove('show');
+            }
+        });
+        
+        // 优化的鼠标拖拽和惯性滚动效果
+        let isDragging = false;
+        let startX = 0;
+        let lastX = 0;
+        let lastDragTime = 0;
+        let dragVelocity = 0;
+        let inertiaAnimationId = null;
+        let dragDeltaIndex = 0;
+        
+        // 鼠标按下时开始拖拽
+        carousel.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            lastX = e.clientX;
+            lastDragTime = Date.now();
+            dragDeltaIndex = 0;
+            
+            // 停止自动轮播
+            if (autoPlay) {
+                toggleAutoPlay();
+            }
+            
+            // 取消任何正在进行的惯性滚动
+            if (inertiaAnimationId) {
+                cancelAnimationFrame(inertiaAnimationId);
+                inertiaAnimationId = null;
+            }
+        });
+        
+        // 鼠标移动时更新拖拽
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            
+            const currentX = e.clientX;
+            const currentTime = Date.now();
+            
+            // 计算拖动距离和时间
+            const deltaX = currentX - lastX;
+            const deltaTime = currentTime - lastDragTime;
+            
+            // 计算拖动速度
+            if (deltaTime > 0) {
+                dragVelocity = deltaX / deltaTime;
+            }
+            
+            // 调整滚动方向：鼠标向右拖动，显示下一张
+            const sensitivity = 0.02; // 优化灵敏度
+            const deltaIndex = Math.round(deltaX * sensitivity);
+            
+            if (deltaIndex !== 0) {
+                dragDeltaIndex += deltaIndex;
+                
+                // 更新当前索引
+                currentIndex = (currentIndex - deltaIndex + totalItems) % totalItems;
+                updateCarousel();
+            }
+            
+            // 更新上次位置和时间
+            lastX = currentX;
+            lastDragTime = currentTime;
+        });
+        
+        // 鼠标释放时结束拖拽并应用惯性
+        document.addEventListener('mouseup', () => {
+            if (!isDragging) return;
+            isDragging = false;
+            
+            // 应用惯性滚动
+            applyInertia();
+        });
+        
+        // 鼠标离开窗口时结束拖拽
+        document.addEventListener('mouseleave', () => {
+            if (isDragging) {
+                isDragging = false;
+                applyInertia();
+            }
+        });
+        
+        // 惯性滚动
+        function applyInertia() {
+            // 计算惯性滚动的距离
+            const inertiaStrength = 0.5;
+            const inertiaDistance = Math.round(dragVelocity * inertiaStrength);
+            
+            if (Math.abs(inertiaDistance) < 1) {
+                // 拖动距离太小，直接对齐到最近的图片
+                snapToNearestImage();
+                return;
+            }
+            
+            const direction = inertiaDistance > 0 ? 1 : -1;
+            const targetIndex = (currentIndex - inertiaDistance + totalItems) % totalItems;
+            const startIndex = currentIndex;
+            const duration = 500;
+            const startTime = Date.now();
+            
+            function animate() {
+                const elapsed = Date.now() - startTime;
+                if (elapsed >= duration) {
+                    currentIndex = targetIndex;
+                    // 惯性滚动结束后，对齐到最近的图片
+                    snapToNearestImage();
+                    inertiaAnimationId = null;
+                    return;
+                }
+                
+                const progress = elapsed / duration;
+                const easedProgress = 1 - Math.pow(1 - progress, 3); // 使用缓动函数
+                const currentProgress = Math.round((targetIndex - startIndex) * easedProgress);
+                currentIndex = (startIndex + currentProgress + totalItems) % totalItems;
+                updateCarousel();
+                inertiaAnimationId = requestAnimationFrame(animate);
+            }
+            
+            animate();
+        }
+        
+        // 对齐到最近的图片
+        function snapToNearestImage() {
+            // 确保currentIndex在有效范围内
+            currentIndex = Math.round(currentIndex) % totalItems;
+            if (currentIndex < 0) {
+                currentIndex += totalItems;
+            }
+            updateCarousel();
+        }
+        
+        // 添加鼠标滚轮支持（包括Mac双指滑动）
+        carousel.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            
+            // 停止自动轮播
+            if (autoPlay) {
+                toggleAutoPlay();
+            }
+            
+            // 调整滚轮灵敏度，根据滑动速度动态调整
+            // e.deltaY 表示垂直滚动距离，e.deltaX 表示水平滚动距离
+            // 对于Mac双指滑动，水平滑动会产生 deltaX 值
+            const baseSensitivity = 0.2; // 优化灵敏度
+            
+            // 计算总滚动距离，考虑水平和垂直滚动
+            // 反转scrollDistance的方向，确保Mac双指左滑显示下一张，右滑显示上一张
+            const rawDistance = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+            const scrollDistance = -rawDistance; // 反转方向
+            
+            // 更新当前索引
+            const deltaIndex = Math.round(scrollDistance * baseSensitivity);
+            if (deltaIndex !== 0) {
+                currentIndex = (currentIndex - deltaIndex + totalItems) % totalItems;
+                updateCarousel();
+            }
+            
+            // 计算滚动速度，并更新自动轮播速度
+            const currentTime = Date.now();
+            const timeDiff = currentTime - lastScrollTime;
+            
+            if (timeDiff > 0 && timeDiff < 1000) { // 只考虑最近1秒内的滚动
+                // 计算滚动速度（距离/时间）
+                scrollSpeed = Math.abs(rawDistance) / timeDiff;
+                
+                // 根据滚动速度调整自动轮播速度
+                // 滚动速度越快，自动轮播速度越快（时间越短）
+                const newSpeed = Math.max(300, 2000 - (scrollSpeed * 500)); // 动态计算新速度
+                updateAutoPlaySpeed(newSpeed);
+            }
+            
+            lastScrollTime = currentTime;
+            
+            // 启动速度恢复定时器，滚动停止后逐渐恢复到默认速度
+            startSpeedRecovery();
+        });
+    }
+    
+    // 页面加载完成后初始化
+    window.addEventListener('DOMContentLoaded', initPage);
+    </script>
+</body>
+</html>

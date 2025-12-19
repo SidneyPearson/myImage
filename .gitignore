@@ -1,0 +1,45 @@
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+app.log
+startup.log
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+*.tmp
+*.temp
+
+# Testing
+**/test-output/
+**/surefire-reports/
+**/failsafe-reports/
+
+# Database
+*.db
+*.sqlite
+
+# Downloaded images
+images/
+!images/.gitkeep
+
+# Cookies
+cookies.txt

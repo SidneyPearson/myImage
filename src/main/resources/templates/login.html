@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片预览系统 - 登录</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        /* 全局样式重置 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        /* 色彩鲜明的网络背景图片 */
+        body {
+            background-image: url('https://images.unsplash.com/photo-1542281286-9e0a16bb7366?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* 粒子背景容器 */
+        .particles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        /* 粒子样式 */
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            animation: float 6s ease-in-out infinite;
+        }
+        
+        /* 粒子浮动动画 */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.8; }
+            50% { transform: translateY(-100px) rotate(180deg); opacity: 0.3; }
+        }
+        
+        /* 3D球体容器 */
+        .spheres-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            perspective: 1500px;
+            z-index: 2;
+        }
+        
+        /* 3D球体 */
+        .sphere {
+            position: absolute;
+            transform-style: preserve-3d;
+            animation: rotateSphere 20s linear infinite;
+        }
+        
+        /* 球体1 - 主球体 */
+        .sphere.main {
+            top: 50%;
+            left: 50%;
+            width: 800px;
+            height: 800px;
+            transform: translate(-50%, -50%);
+        }
+        
+        /* 球体2 - 较小的旋转球体 */
+        .sphere.secondary {
+            top: 30%;
+            left: 30%;
+            width: 300px;
+            height: 300px;
+            animation-duration: 15s;
+            animation-direction: reverse;
+        }
+        
+        /* 球体3 - 更小的旋转球体 */
+        .sphere.tertiary {
+            top: 70%;
+            left: 70%;
+            width: 200px;
+            height: 200px;
+            animation-duration: 12s;
+        }
+        
+        /* 球体旋转动画 */
+        @keyframes rotateSphere {
+            0% { transform: translate(-50%, -50%) rotateX(0deg) rotateY(0deg); }
+            100% { transform: translate(-50%, -50%) rotateX(360deg) rotateY(360deg); }
+        }
+        
+        /* 球体上的元素 */
+        .sphere-item {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            background-size: cover;
+            background-position: center;
+            border-radius: 12px;
+            opacity: 0.6;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            transition: all 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+        
+        /* 球体项目悬停效果 */
+        .sphere-item:hover {
+            opacity: 1;
+            transform: scale(1.2);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+        }
+        
+        /* 为主球体设置3D位置 */
+        .sphere.main .sphere-item:nth-child(1) { transform: translate(-50%, -50%) rotateY(0deg) translateZ(400px); background: linear-gradient(135deg, rgba(102, 126, 234, 0.8), rgba(118, 75, 162, 0.8)); }
+        .sphere.main .sphere-item:nth-child(2) { transform: translate(-50%, -50%) rotateY(45deg) translateZ(400px); background: linear-gradient(135deg, rgba(240, 147, 251, 0.8), rgba(245, 87, 108, 0.8)); }
+        .sphere.main .sphere-item:nth-child(3) { transform: translate(-50%, -50%) rotateY(90deg) translateZ(400px); background: linear-gradient(135deg, rgba(79, 172, 254, 0.8), rgba(0, 242, 254, 0.8)); }
+        .sphere.main .sphere-item:nth-child(4) { transform: translate(-50%, -50%) rotateY(135deg) translateZ(400px); background: linear-gradient(135deg, rgba(67, 233, 123, 0.8), rgba(56, 249, 215, 0.8)); }
+        .sphere.main .sphere-item:nth-child(5) { transform: translate(-50%, -50%) rotateY(180deg) translateZ(400px); background: linear-gradient(135deg, rgba(250, 112, 154, 0.8), rgba(254, 225, 64, 0.8)); }
+        .sphere.main .sphere-item:nth-child(6) { transform: translate(-50%, -50%) rotateY(225deg) translateZ(400px); background: linear-gradient(135deg, rgba(48, 207, 208, 0.8), rgba(51, 8, 103, 0.8)); }
+        .sphere.main .sphere-item:nth-child(7) { transform: translate(-50%, -50%) rotateY(270deg) translateZ(400px); background: linear-gradient(135deg, rgba(168, 237, 234, 0.8), rgba(254, 214, 227, 0.8)); }
+        .sphere.main .sphere-item:nth-child(8) { transform: translate(-50%, -50%) rotateY(315deg) translateZ(400px); background: linear-gradient(135deg, rgba(255, 154, 158, 0.8), rgba(254, 207, 239, 0.8)); }
+        
+        /* 上下位置的项目 */
+        .sphere.main .sphere-item:nth-child(9) { transform: translate(-50%, -50%) rotateX(30deg) translateZ(400px); background: linear-gradient(135deg, rgba(255, 236, 210, 0.8), rgba(252, 182, 159, 0.8)); }
+        .sphere.main .sphere-item:nth-child(10) { transform: translate(-50%, -50%) rotateX(-30deg) translateZ(400px); background: linear-gradient(135deg, rgba(161, 196, 253, 0.8), rgba(194, 233, 251, 0.8)); }
+        .sphere.main .sphere-item:nth-child(11) { transform: translate(-50%, -50%) rotateX(60deg) translateZ(400px); background: linear-gradient(135deg, rgba(255, 206, 196, 0.8), rgba(255, 128, 128, 0.8)); }
+        .sphere.main .sphere-item:nth-child(12) { transform: translate(-50%, -50%) rotateX(-60deg) translateZ(400px); background: linear-gradient(135deg, rgba(196, 255, 206, 0.8), rgba(128, 255, 128, 0.8)); }
+        
+        /* 为次级球体设置3D位置 */
+        .sphere.secondary .sphere-item {
+            width: 60px;
+            height: 60px;
+        }
+        
+        .sphere.secondary .sphere-item:nth-child(1) { transform: translate(-50%, -50%) rotateY(0deg) translateZ(150px); background: linear-gradient(135deg, rgba(255, 100, 100, 0.8), rgba(255, 50, 50, 0.8)); }
+        .sphere.secondary .sphere-item:nth-child(2) { transform: translate(-50%, -50%) rotateY(90deg) translateZ(150px); background: linear-gradient(135deg, rgba(100, 255, 100, 0.8), rgba(50, 255, 50, 0.8)); }
+        .sphere.secondary .sphere-item:nth-child(3) { transform: translate(-50%, -50%) rotateY(180deg) translateZ(150px); background: linear-gradient(135deg, rgba(100, 100, 255, 0.8), rgba(50, 50, 255, 0.8)); }
+        .sphere.secondary .sphere-item:nth-child(4) { transform: translate(-50%, -50%) rotateY(270deg) translateZ(150px); background: linear-gradient(135deg, rgba(255, 255, 100, 0.8), rgba(255, 255, 50, 0.8)); }
+        
+        /* 为第三级球体设置3D位置 */
+        .sphere.tertiary .sphere-item {
+            width: 40px;
+            height: 40px;
+        }
+        
+        .sphere.tertiary .sphere-item:nth-child(1) { transform: translate(-50%, -50%) rotateY(0deg) translateZ(100px); background: linear-gradient(135deg, rgba(255, 150, 255, 0.8), rgba(200, 100, 255, 0.8)); }
+        .sphere.tertiary .sphere-item:nth-child(2) { transform: translate(-50%, -50%) rotateY(120deg) translateZ(100px); background: linear-gradient(135deg, rgba(150, 255, 255, 0.8), rgba(100, 200, 255, 0.8)); }
+        .sphere.tertiary .sphere-item:nth-child(3) { transform: translate(-50%, -50%) rotateY(240deg) translateZ(100px); background: linear-gradient(135deg, rgba(255, 255, 150, 0.8), rgba(255, 200, 100, 0.8)); }
+        
+        /* 登录容器 */
+        .login-container {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            z-index: 10;
+        }
+        
+        /* 登录框样式 - 炫酷设计，更大尺寸 */
+        .login-box {
+            background: rgba(30, 30, 30, 0.9);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 32px;
+            padding: 90px 80px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            max-width: 800px; /* 进一步增大最大宽度 */
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* 登录框发光效果 */
+        .login-box::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transform: rotate(45deg);
+            animation: shine 3s linear infinite;
+        }
+        
+        /* 发光动画 */
+        @keyframes shine {
+            0% { transform: translateX(-100%) rotate(45deg); }
+            100% { transform: translateX(100%) rotate(45deg); }
+        }
+        
+        /* 登录框内容 */
+        .login-box h2 {
+            color: white; /* 白色文字，确保在深色背景上清晰可见 */
+            font-size: 48px; /* 增大标题字体 */
+            margin-bottom: 70px; /* 增大底部间距 */
+            text-align: center;
+            font-weight: 700;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            position: relative;
+            z-index: 2;
+        }
+        
+        /* 表单样式 */
+        .login-box form {
+            position: relative;
+            z-index: 2;
+        }
+        
+        /* 表单组样式 */
+        .form-group {
+            margin-bottom: 50px; /* 增大表单组间距 */
+        }
+        
+        /* 标签样式 - 确保清晰可见 */
+        .form-group label {
+            display: block;
+            color: white; /* 白色文字，确保在深色背景上清晰可见 */
+            margin-bottom: 20px; /* 增大底部间距 */
+            font-size: 28px; /* 增大标签字体 */
+            font-weight: 600;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            letter-spacing: 0.5px;
+        }
+        
+        /* 输入框样式 - 从用户体验角度优化，确保高对比度 */
+        .form-group input[type="password"] {
+            width: 100%;
+            padding: 28px 32px; /* 增大内边距 */
+            border: none;
+            border-radius: 20px; /* 增大圆角 */
+            background: rgba(50, 50, 50, 0.8); /* 深色背景，与深色登录框协调 */
+            color: white; /* 白色文字，确保在深色背景上清晰可见 */
+            font-size: 32px; /* 增大字体大小，使密码圆点更清晰 */
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(102, 126, 234, 0.5); /* 明显的边框颜色 */
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); /* 轻微阴影增强立体感 */
+        }
+        
+        /* 输入框焦点样式 */
+        .form-group input[type="password"]:focus {
+            outline: none;
+            background: rgba(60, 60, 60, 0.9); /* 稍亮的深色背景，明确指示焦点状态 */
+            border-color: #667eea; /* 鲜明的边框颜色，明确指示焦点状态 */
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.5); /* 焦点发光效果 */
+        }
+        
+        /* 输入框占位符样式 - 确保清晰可见 */
+        .form-group input[type="password"]::placeholder {
+            color: rgba(255, 255, 255, 0.7); /* 半透明白色，与深色背景形成良好对比度 */
+            font-size: 20px; /* 增大占位符字体大小 */
+        }
+        
+        /* 错误信息样式 - 确保在深色背景上清晰可见 */
+        .error-message {
+            background: rgba(255, 80, 80, 0.9);
+            color: white;
+            padding: 22px; /* 增大内边距 */
+            border-radius: 16px; /* 增大圆角 */
+            margin-bottom: 40px; /* 增大底部间距 */
+            text-align: center;
+            border: 1px solid rgba(255, 80, 80, 1);
+            backdrop-filter: blur(10px);
+            font-weight: 500;
+            font-size: 20px; /* 增大字体大小 */
+        }
+        
+        /* 登录按钮样式 - 更大尺寸 */
+        .login-btn {
+            width: 100%;
+            padding: 28px;
+            border: none;
+            border-radius: 20px; /* 增大圆角 */
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            font-size: 28px; /* 增大按钮字体 */
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* 登录按钮悬停效果 */
+        .login-btn:hover {
+            background: linear-gradient(135deg, #5a6fd8, #6a408e);
+            transform: translateY(-2px);
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
+        }
+        
+        /* 登录按钮点击效果 */
+        .login-btn:active {
+            transform: translateY(0);
+        }
+        
+        /* 登录按钮发光效果 */
+        .login-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: all 0.5s ease;
+        }
+        
+        /* 登录按钮悬停时的发光动画 */
+        .login-btn:hover::before {
+            left: 100%;
+        }
+    </style>
+</head>
+<body>
+    <!-- 动态粒子背景 -->
+    <div class="particles" id="particles"></div>
+    
+    <!-- 3D球体背景 -->
+    <div class="spheres-container">
+        <!-- 主球体 -->
+        <div class="sphere main">
+            <div class="sphere-item"></div>
+            <div class="sphere-item"></div>
+            <div class="sphere-item"></div>
+            <div class="sphere-item"></div>
+            <div class="sphere-item"></div>
+            <div class="sphere-item"></div>
+            <div class="sphere-item"></div>
+            <div class="sphere-item"></div>
+            <div class="sphere-item"></div>
+            <div class="sphere-item"></div>
+            <div class="sphere-item"></div>
+            <div class="sphere-item"></div>
+        </div>
+        
+        <!-- 次级球体 -->
+        <div class="sphere secondary">
+            <div class="sphere-item"></div>
+            <div class="sphere-item"></div>
+            <div class="sphere-item"></div>
+            <div class="sphere-item"></div>
+        </div>
+        
+        <!-- 第三级球体 -->
+        <div class="sphere tertiary">
+            <div class="sphere-item"></div>
+            <div class="sphere-item"></div>
+            <div class="sphere-item"></div>
+        </div>
+    </div>
+    
+    <div class="login-container">
+        <div class="login-box">
+            <h2>图片预览系统</h2>
+            <form th:action="@{/login}" method="post">
+                <!-- CSRF保护已禁用，不需要CSRF令牌 -->
+                
+                <div class="form-group">
+                    <label for="password">请输入密码</label>
+                    <input type="password" id="password" name="password" maxlength="12" required placeholder="请输入密码">
+                </div>
+                <div class="form-group">
+                    <input type="hidden" name="username" value="admin"> <!-- Spring Security需要username字段 -->
+                </div>
+                <div th:if="${param.error}" class="error-message">
+                    密码错误，请重试
+                </div>
+                <button type="submit" class="login-btn">登录</button>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        // 生成动态粒子
+        function createParticles() {
+            const particlesContainer = document.getElementById('particles');
+            const particleCount = 50;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                
+                // 随机位置
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.top = Math.random() * 100 + '%';
+                
+                // 随机大小
+                const size = Math.random() * 4 + 2;
+                particle.style.width = size + 'px';
+                particle.style.height = size + 'px';
+                
+                // 随机动画延迟和持续时间
+                particle.style.animationDelay = Math.random() * 6 + 's';
+                particle.style.animationDuration = Math.random() * 4 + 4 + 's';
+                
+                particlesContainer.appendChild(particle);
+            }
+        }
+        
+        // 页面加载完成后生成粒子
+        window.addEventListener('DOMContentLoaded', createParticles);
+    </script>
+</body>
+</html>
