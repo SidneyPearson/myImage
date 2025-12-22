@@ -268,53 +268,23 @@
         const speedRecoveryDelay = 1000; // 滚动停止后开始恢复速度的延迟时间（毫秒）
         const speedRecoveryStep = 100; // 每次恢复的速度步长（毫秒）
         
-        // 根据图片数量计算合适的圆环半径，避免图片重叠
-        function calculateRingRadius(itemCount) {
-            // 每张图片的宽度为250px，确保图片之间有10%的间隔
-            const imageWidth = 250;
-            const spacingFactor = 1.1;
-            const minRadius = 300;
-            
-            // 计算所需的最小半径：radius = (imageWidth * spacingFactor) / (2 * Math.sin(Math.PI / itemCount))
-            // 当图片数量为1时，使用最小半径
-            const radius = itemCount > 1 ? 
-                Math.max(minRadius, (imageWidth * spacingFactor) / (2 * Math.sin(Math.PI / itemCount))) : 
-                minRadius;
-            
-            return Math.round(radius);
-        }
-        
-        const ringRadius = calculateRingRadius(totalItems);
-        
         // 为每个li元素设置初始3D位置
-        ensureFrontFacing();
-        
-        // 确保图片正面朝向的辅助函数
-        function ensureFrontFacing() {
-            items.forEach((item, index) => {
-                // 计算当前图片与中心图片的索引差
-                const indexDiff = index - currentIndex;
-                
-                // 计算每个项目在轮播圆环上的位置角度
-                const angle = (360 / totalItems) * indexDiff;
-                
-                // 使用三角函数计算3D位置，确保所有图片正面朝向
-                const x = Math.sin(angle * Math.PI / 180) * ringRadius;
-                const z = Math.cos(angle * Math.PI / 180) * ringRadius;
-                
-                // 设置3D位置，但保持图片正面朝向（rotateY(0deg)）
-                item.style.transform = `translate(-50%, -50%) translateX(${x}px) translateZ(${z}px) rotateY(0deg)`;
-                
-                // 根据是否为当前显示的图片调整透明度和层级
-                if (index === currentIndex) {
-                    item.style.opacity = 1;
-                    item.style.zIndex = 10;
-                } else {
-                    item.style.opacity = 0.7;
-                    item.style.zIndex = 1;
-                }
-            });
-        }
+        items.forEach((item, index) => {
+            // 计算每个项目在轮播圆环上的位置角度
+            const angle = (360 / totalItems) * index;
+            
+            // 设置3D位置和旋转，使图片排列成圆环
+            item.style.transform = `translate(-50%, -50%) rotateY(${angle}deg) translateZ(300px)`;
+            
+            // 设置第一个元素为当前显示元素
+            if (index === 0) {
+                item.style.opacity = 1;
+                item.style.zIndex = 10;
+            } else {
+                item.style.opacity = 0.7;
+                item.style.zIndex = 1;
+            }
+        });
         
         // 设置当前图片作为背景
         function setCurrentImageBackground() {
@@ -326,8 +296,29 @@
         
         // 更新轮播状态
         function updateCarousel() {
-            // 确保所有图片正面朝向，通过ensureFrontFacing函数计算精确位置
-            ensureFrontFacing();
+            // 确保当前角度是图片间隔的整数倍
+            const step = (360 / totalItems);
+            
+            // 调整轮播方向，确保图片向上轮播
+            carousel.style.transform = `rotateY(${currentAngle}deg)`;
+            
+            // 直接使用当前角度计算索引，不进行归一化，确保与实际显示一致
+            let calculatedIndex = Math.round(currentAngle / step) % totalItems;
+            if (calculatedIndex < 0) {
+                calculatedIndex += totalItems;
+            }
+            currentIndex = calculatedIndex;
+            
+            // 更新图片透明度和层级
+            items.forEach((item, index) => {
+                if (index === currentIndex) {
+                    item.style.opacity = 1;
+                    item.style.zIndex = 10;
+                } else {
+                    item.style.opacity = 0.7;
+                    item.style.zIndex = 1;
+                }
+            });
             
             // 设置当前图片作为背景
             setCurrentImageBackground();
@@ -335,15 +326,15 @@
         
         // 下一张图片
         function nextSlide() {
-            // 直接更新当前索引，确保图片向上轮播
-            currentIndex = (currentIndex + 1) % totalItems;
+            // 调整方向，确保图片向上轮播
+            currentAngle -= (360 / totalItems);
             updateCarousel();
         }
         
         // 上一张图片
         function prevSlide() {
-            // 直接更新当前索引，确保图片向上轮播
-            currentIndex = (currentIndex - 1 + totalItems) % totalItems;
+            // 调整方向，确保图片向上轮播
+            currentAngle += (360 / totalItems);
             updateCarousel();
         }
         
@@ -516,32 +507,20 @@
             }
         });
         
-        // 优化的鼠标拖拽和惯性滚动效果
+        // 鼠标拖拽效果
         let isDragging = false;
         let startX = 0;
-        let lastX = 0;
-        let lastDragTime = 0;
-        let dragVelocity = 0;
-        let inertiaAnimationId = null;
-        let dragDeltaIndex = 0;
+        let startAngle = 0;
         
         // 鼠标按下时开始拖拽
         carousel.addEventListener('mousedown', (e) => {
             isDragging = true;
             startX = e.clientX;
-            lastX = e.clientX;
-            lastDragTime = Date.now();
-            dragDeltaIndex = 0;
+            startAngle = currentAngle;
             
             // 停止自动轮播
             if (autoPlay) {
                 toggleAutoPlay();
-            }
-            
-            // 取消任何正在进行的惯性滚动
-            if (inertiaAnimationId) {
-                cancelAnimationFrame(inertiaAnimationId);
-                inertiaAnimationId = null;
             }
         });
         
@@ -550,99 +529,23 @@
             if (!isDragging) return;
             
             const currentX = e.clientX;
-            const currentTime = Date.now();
-            
-            // 计算拖动距离和时间
-            const deltaX = currentX - lastX;
-            const deltaTime = currentTime - lastDragTime;
-            
-            // 计算拖动速度
-            if (deltaTime > 0) {
-                dragVelocity = deltaX / deltaTime;
-            }
+            const deltaX = currentX - startX;
             
             // 调整滚动方向：鼠标向右拖动，显示下一张
-            const sensitivity = 0.02; // 优化灵敏度
-            const deltaIndex = Math.round(deltaX * sensitivity);
-            
-            if (deltaIndex !== 0) {
-                dragDeltaIndex += deltaIndex;
-                
-                // 更新当前索引
-                currentIndex = (currentIndex - deltaIndex + totalItems) % totalItems;
-                updateCarousel();
-            }
-            
-            // 更新上次位置和时间
-            lastX = currentX;
-            lastDragTime = currentTime;
+            const sensitivity = 0.6;
+            currentAngle = startAngle + deltaX * sensitivity;
+            updateCarousel();
         });
         
-        // 鼠标释放时结束拖拽并应用惯性
+        // 鼠标释放时结束拖拽
         document.addEventListener('mouseup', () => {
-            if (!isDragging) return;
             isDragging = false;
-            
-            // 应用惯性滚动
-            applyInertia();
         });
         
         // 鼠标离开窗口时结束拖拽
         document.addEventListener('mouseleave', () => {
-            if (isDragging) {
-                isDragging = false;
-                applyInertia();
-            }
+            isDragging = false;
         });
-        
-        // 惯性滚动
-        function applyInertia() {
-            // 计算惯性滚动的距离
-            const inertiaStrength = 0.5;
-            const inertiaDistance = Math.round(dragVelocity * inertiaStrength);
-            
-            if (Math.abs(inertiaDistance) < 1) {
-                // 拖动距离太小，直接对齐到最近的图片
-                snapToNearestImage();
-                return;
-            }
-            
-            const direction = inertiaDistance > 0 ? 1 : -1;
-            const targetIndex = (currentIndex - inertiaDistance + totalItems) % totalItems;
-            const startIndex = currentIndex;
-            const duration = 500;
-            const startTime = Date.now();
-            
-            function animate() {
-                const elapsed = Date.now() - startTime;
-                if (elapsed >= duration) {
-                    currentIndex = targetIndex;
-                    // 惯性滚动结束后，对齐到最近的图片
-                    snapToNearestImage();
-                    inertiaAnimationId = null;
-                    return;
-                }
-                
-                const progress = elapsed / duration;
-                const easedProgress = 1 - Math.pow(1 - progress, 3); // 使用缓动函数
-                const currentProgress = Math.round((targetIndex - startIndex) * easedProgress);
-                currentIndex = (startIndex + currentProgress + totalItems) % totalItems;
-                updateCarousel();
-                inertiaAnimationId = requestAnimationFrame(animate);
-            }
-            
-            animate();
-        }
-        
-        // 对齐到最近的图片
-        function snapToNearestImage() {
-            // 确保currentIndex在有效范围内
-            currentIndex = Math.round(currentIndex) % totalItems;
-            if (currentIndex < 0) {
-                currentIndex += totalItems;
-            }
-            updateCarousel();
-        }
         
         // 添加鼠标滚轮支持（包括Mac双指滑动）
         carousel.addEventListener('wheel', (e) => {
@@ -654,39 +557,27 @@
             }
             
             // 调整滚轮灵敏度，根据滑动速度动态调整
-            // e.deltaY 表示垂直滚动距离，e.deltaX 表示水平滚动距离
-            // 对于Mac双指滑动，水平滑动会产生 deltaX 值
-            const baseSensitivity = 0.2; // 优化灵敏度
+            const baseSensitivity = 1.5;
             
-            // 计算总滚动距离，考虑水平和垂直滚动
-            // 反转scrollDistance的方向，确保Mac双指左滑显示下一张，右滑显示上一张
+            // 计算总滚动距离
             const rawDistance = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-            const scrollDistance = -rawDistance; // 反转方向
+            const scrollDistance = -rawDistance;
             
-            // 更新当前索引
-            const deltaIndex = Math.round(scrollDistance * baseSensitivity);
-            if (deltaIndex !== 0) {
-                currentIndex = (currentIndex - deltaIndex + totalItems) % totalItems;
-                updateCarousel();
-            }
+            // 更新当前角度
+            currentAngle += scrollDistance * baseSensitivity;
+            updateCarousel();
             
             // 计算滚动速度，并更新自动轮播速度
             const currentTime = Date.now();
             const timeDiff = currentTime - lastScrollTime;
             
-            if (timeDiff > 0 && timeDiff < 1000) { // 只考虑最近1秒内的滚动
-                // 计算滚动速度（距离/时间）
+            if (timeDiff > 0 && timeDiff < 1000) {
                 scrollSpeed = Math.abs(rawDistance) / timeDiff;
-                
-                // 根据滚动速度调整自动轮播速度
-                // 滚动速度越快，自动轮播速度越快（时间越短）
-                const newSpeed = Math.max(300, 2000 - (scrollSpeed * 500)); // 动态计算新速度
+                const newSpeed = Math.max(300, 2000 - (scrollSpeed * 500));
                 updateAutoPlaySpeed(newSpeed);
             }
             
             lastScrollTime = currentTime;
-            
-            // 启动速度恢复定时器，滚动停止后逐渐恢复到默认速度
             startSpeedRecovery();
         });
     </script>
