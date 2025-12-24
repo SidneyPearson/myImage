@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpSession;
 import java.io.File;
@@ -152,6 +153,57 @@ public class ImageController {
         return "gallery";
     }
 
+    // 处理图片上传
+    @PostMapping("/upload")
+    public String uploadImage(@RequestParam("file") MultipartFile file,
+                              HttpSession session,
+                              RedirectAttributes redirectAttributes) {
+        if (file.isEmpty()) {
+            redirectAttributes.addFlashAttribute("message", "请选择一个文件");
+            return "redirect:/gallery";
+        }
+        try {
+            String currentFolder = (String) session.getAttribute("selectedFolder");
+            if (currentFolder == null) {
+                currentFolder = imageDirectory;
+            }
+            String fileName = file.getOriginalFilename();
+            File dest = new File(currentFolder + File.separator + fileName);
+            if (dest.exists()) {
+                redirectAttributes.addFlashAttribute("error", "文件已存在: " + fileName);
+                return "redirect:/gallery";
+            }
+            file.transferTo(dest);
+            redirectAttributes.addFlashAttribute("message", "上传成功: " + fileName);
+        } catch (IOException e) {
+            e.printStackTrace();
+            redirectAttributes.addFlashAttribute("error", "上传失败: " + e.getMessage());
+        }
+        return "redirect:/gallery";
+    }
+
+    // 处理图片删除(简单实现)
+    @PostMapping("/delete")
+    public String deleteImage(@RequestParam("filename") String filename, 
+                              HttpSession session, 
+                              RedirectAttributes redirectAttributes) {
+        try {
+            String currentFolder = (String) session.getAttribute("selectedFolder");
+            if (currentFolder == null) {
+                currentFolder = imageDirectory;
+            }
+            File file = new File(currentFolder + File.separator + filename);
+            if (file.exists() && file.delete()) {
+                redirectAttributes.addFlashAttribute("message", "删除成功");
+            } else {
+                redirectAttributes.addFlashAttribute("error", "删除失败或文件不存在");
+            }
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "删除出错");
+        }
+        return "redirect:/gallery";
+    }
+
     // 提供图片文件的访问
     @GetMapping("/images/{filename}")
     public ResponseEntity<Resource> getImage(@PathVariable String filename, HttpSession session) throws IOException {
@@ -178,3 +230,4 @@ public class ImageController {
                 .body(resource);
     }
 }
+

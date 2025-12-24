@@ -267,6 +267,9 @@
         let speedRecoveryTimer = null; // 用于恢复默认速度的定时器
         const speedRecoveryDelay = 1000; // 滚动停止后开始恢复速度的延迟时间（毫秒）
         const speedRecoveryStep = 100; // 每次恢复的速度步长（毫秒）
+        let autoResumeTimer = null;
+        let wasAutoPlaying = false;
+        const step = (360 / totalItems); // 单步角度
         
         // 为每个li元素设置初始3D位置
         items.forEach((item, index) => {
@@ -294,16 +297,40 @@
             }
         }
         
-        // 更新轮播状态
+        // 暂停自动轮播并在一段时间后恢复（仅当之前是自动播放时）
+        function pauseAutoPlayTemporarily() {
+            if (autoResumeTimer) {
+                clearTimeout(autoResumeTimer);
+                autoResumeTimer = null;
+            }
+            if (autoPlay) {
+                wasAutoPlaying = true;
+                toggleAutoPlay(); // 暂停
+                autoResumeTimer = setTimeout(() => {
+                    if (!autoPlay && wasAutoPlaying) {
+                        toggleAutoPlay(); // 恢复
+                        wasAutoPlaying = false;
+                    }
+                }, 2000);
+            }
+        }
+        
+        // 将 currentAngle 吸附到最近的图片角度
+        function snapToNearest(withUpdate = true) {
+            currentAngle = Math.round(currentAngle / step) * step;
+            if (withUpdate) {
+                updateCarousel();
+            }
+        }
+        
+        // 更新轮播状态：根据 currentAngle 计算当前居中的图片，并同步模糊背景
         function updateCarousel() {
-            // 确保当前角度是图片间隔的整数倍
-            const step = (360 / totalItems);
-            
             // 调整轮播方向，确保图片向上轮播
             carousel.style.transform = `rotateY(${currentAngle}deg)`;
             
-            // 直接使用当前角度计算索引，不进行归一化，确保与实际显示一致
-            let calculatedIndex = Math.round(currentAngle / step) % totalItems;
+            // 根据当前旋转角度计算“正对用户”的那一张图片索引
+            // 说明：currentAngle 向负方向转动，对应索引递增，所以这里取 -currentAngle / step
+            let calculatedIndex = Math.round(-currentAngle / step) % totalItems;
             if (calculatedIndex < 0) {
                 calculatedIndex += totalItems;
             }
@@ -423,11 +450,11 @@
         prevBtn.addEventListener('click', prevSlide);
         autoBtn.addEventListener('click', toggleAutoPlay);
         
-        // 点击图片容器切换到该图片（仅当没有点击到图片本身时）
+        // 点击某一张缩略图时，将该图旋转到正中并同步背景
         items.forEach((item, index) => {
             item.addEventListener('click', () => {
-                // 直接更新当前索引
-                currentIndex = index;
+                // 目标角度：使 index 这张图正对用户（与 currentIndex 计算方式保持一致）
+                currentAngle = -step * index;
                 updateCarousel();
             });
         });
@@ -519,9 +546,7 @@
             startAngle = currentAngle;
             
             // 停止自动轮播
-            if (autoPlay) {
-                toggleAutoPlay();
-            }
+            pauseAutoPlayTemporarily();
         });
         
         // 鼠标移动时更新拖拽
@@ -540,46 +565,35 @@
         // 鼠标释放时结束拖拽
         document.addEventListener('mouseup', () => {
             isDragging = false;
+            snapToNearest();
         });
         
         // 鼠标离开窗口时结束拖拽
         document.addEventListener('mouseleave', () => {
             isDragging = false;
+            snapToNearest();
         });
         
-        // 添加鼠标滚轮支持（包括Mac双指滑动）
+        // 鼠标滚轮 / 触控板滑动（简化，方向一致且自动吸附）
+        let wheelTimer = null;
         carousel.addEventListener('wheel', (e) => {
             e.preventDefault();
+            pauseAutoPlayTemporarily();
             
-            // 停止自动轮播
-            if (autoPlay) {
-                toggleAutoPlay();
-            }
-            
-            // 调整滚轮灵敏度，根据滑动速度动态调整
-            const baseSensitivity = 1.5;
-            
-            // 计算总滚动距离
             const rawDistance = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-            const scrollDistance = -rawDistance;
+            if (!rawDistance) return;
             
-            // 更新当前角度
+            // 左滑（deltaX 负）视为下一张：角度减小
+            const scrollDistance = -rawDistance;
+            const baseSensitivity = 1.2; // 降低灵敏度，避免过冲
+            
             currentAngle += scrollDistance * baseSensitivity;
             updateCarousel();
             
-            // 计算滚动速度，并更新自动轮播速度
-            const currentTime = Date.now();
-            const timeDiff = currentTime - lastScrollTime;
-            
-            if (timeDiff > 0 && timeDiff < 1000) {
-                scrollSpeed = Math.abs(rawDistance) / timeDiff;
-                const newSpeed = Math.max(300, 2000 - (scrollSpeed * 500));
-                updateAutoPlaySpeed(newSpeed);
-            }
-            
-            lastScrollTime = currentTime;
-            startSpeedRecovery();
-        });
+            // 停止后吸附到最近的图片
+            if (wheelTimer) clearTimeout(wheelTimer);
+            wheelTimer = setTimeout(() => snapToNearest(), 120);
+        }, { passive: false });
     </script>
 </body>
 </html>
